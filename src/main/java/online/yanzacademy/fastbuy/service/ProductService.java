@@ -243,4 +243,22 @@ public class ProductService implements IProductService {
 
         return productRepository.save(product);
     }
+
+    @Override
+    public void deleteProduct(Long id) throws Exception {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new Exception("Producto no encontrado con el id: " + id));
+        
+        // Opcional: Eliminar la imagen asociada si existe localmente
+        if (product.getDesignImagePath() != null) {
+            Path imagePath = Paths.get(uploadDir).resolve(product.getDesignImagePath());
+            try {
+                Files.deleteIfExists(imagePath);
+            } catch (IOException e) {
+                System.err.println("No se pudo eliminar la imagen: " + e.getMessage());
+            }
+        }
+
+        productRepository.delete(product);
+    }
 }

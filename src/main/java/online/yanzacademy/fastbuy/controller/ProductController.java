@@ -71,4 +71,15 @@ public class ProductController {
             return ResponseEntity.status(500).body(Map.of("status", "error", "message", e.getMessage()));
         }
     }
+
+    @DeleteMapping("/delete/{id}")
+    public ResponseEntity<Map<String, Object>> deleteProduct(@PathVariable("id") Long id) {
+        try {
+            productService.deleteProduct(id);
+            return ResponseEntity.ok(Map.of("status", "success", "message", "Producto eliminado correctamente"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
 }

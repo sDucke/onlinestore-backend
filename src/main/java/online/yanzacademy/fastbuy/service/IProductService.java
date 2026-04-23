@@ -17,4 +17,7 @@ public interface IProductService {
 
     // Actualizar producto
     Product updateProduct(Long id, String nombre, String precio, String cantidad, String detalles, String categoria) throws Exception;
+
+    // Eliminar producto
+    void deleteProduct(Long id) throws Exception;
 }
