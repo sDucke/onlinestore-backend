@@ -35,10 +35,11 @@ public class ProductController {
         // 2. Si fue exitoso, la IA nos mandó la imagen de vuelta, extraigámosla y guardemos en BD:
         if ("success".equals(response.get("status")) && response.containsKey("n8n_response_image")) {
             String base64GeneratedImage = (String) response.get("n8n_response_image");
+            String socialPost = response.containsKey("social_post") ? (String) response.get("social_post") : "";
             
             try {
                 // Guardar localmente y en PostgreSQL usando el Base64 retornado por n8n
-                productService.saveProductFromAI(base64GeneratedImage, nombre, precio, cantidad, detalles, "General");
+                productService.saveProductFromAI(base64GeneratedImage, nombre, precio, cantidad, detalles, "General", socialPost);
             } catch (Exception e) {
                 e.printStackTrace();
                 return ResponseEntity.status(500).body(Map.of("status", "error", "message", "Error al guardar diseño de n8n en BD: " + e.getMessage()));

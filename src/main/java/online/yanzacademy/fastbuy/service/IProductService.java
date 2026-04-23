@@ -13,7 +13,7 @@ public interface IProductService {
     java.util.List<Product> getAllProducts();
 
     // Guardará localmente y en BD después de recibir la imagen procesada en Base64 por la IA
-    Product saveProductFromAI(String base64Image, String nombre, String precio, String cantidad, String detalles, String categoria) throws Exception;
+    Product saveProductFromAI(String base64Image, String nombre, String precio, String cantidad, String detalles, String categoria, String socialPost) throws Exception;
 
     // Actualizar producto
     Product updateProduct(Long id, String nombre, String precio, String cantidad, String detalles, String categoria) throws Exception;

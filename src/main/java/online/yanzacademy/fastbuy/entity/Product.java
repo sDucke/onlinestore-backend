@@ -28,6 +28,10 @@ public class Product {
     @Column(columnDefinition = "TEXT")
     private String details;
 
+    @Lob
+    @Column(columnDefinition = "TEXT", name = "social_post")
+    private String socialPost;
+
     @Column(name = "design_image_path", length = 500)
     private String designImagePath;
 
@@ -58,6 +62,8 @@ public class Product {
     public void setDetails(String details) { this.details = details; }
     public String getDesignImagePath() { return designImagePath; }
     public void setDesignImagePath(String designImagePath) { this.designImagePath = designImagePath; }
+    public String getSocialPost() { return socialPost; }
+    public void setSocialPost(String socialPost) { this.socialPost = socialPost; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public Boolean getIsActive() { return isActive; }

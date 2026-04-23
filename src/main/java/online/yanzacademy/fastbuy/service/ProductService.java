@@ -10,6 +10,8 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.HashMap;
 import java.util.Map;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import online.yanzacademy.fastbuy.entity.Product;
 import online.yanzacademy.fastbuy.repository.ProductRepository;
@@ -88,7 +90,47 @@ public class ProductService implements IProductService {
             MediaType n8nContentType = n8nResponse.getHeaders().getContentType();
             
             if (responseBytes != null && responseBytes.length > 0) {
-                if (n8nContentType != null && n8nContentType.toString().startsWith("image/")) {
+                String responseStr = new String(responseBytes, java.nio.charset.StandardCharsets.UTF_8);
+                if (n8nContentType != null && n8nContentType.toString().startsWith("application/json")) {
+                    ObjectMapper mapper = new ObjectMapper();
+                    JsonNode rootNode = mapper.readTree(responseStr);
+                    
+                    if (rootNode.has("image_base64")) {
+                        String mimeType = rootNode.has("mimeType") ? rootNode.get("mimeType").asText() : "image/png";
+                        String base64Image = rootNode.get("image_base64").asText();
+                        String dataUrl = "data:" + mimeType + ";base64," + base64Image;
+                        
+                        response.put("status", "success");
+                        response.put("message", "Información procesada y enviada a n8n exitosamente.");
+                        response.put("n8n_response_image", dataUrl);
+                        
+                        if (rootNode.has("social_post")) {
+                            JsonNode socialPostNode = rootNode.get("social_post");
+                            String hook = socialPostNode.has("hook") ? socialPostNode.get("hook").asText() : "";
+                            String texto = socialPostNode.has("texto_publicacion") ? socialPostNode.get("texto_publicacion").asText() : "";
+                            String cta = socialPostNode.has("cta") ? socialPostNode.get("cta").asText() : "";
+                            
+                            // Asegurarse de que el texto incluya el precio
+                            if (!texto.contains(precio)) {
+                                texto += " | Precio: $" + precio;
+                            }
+                            
+                            StringBuilder hashtagsBuilder = new StringBuilder();
+                            if (socialPostNode.has("hashtags")) {
+                                for (JsonNode tag : socialPostNode.get("hashtags")) {
+                                    hashtagsBuilder.append(tag.asText()).append(" ");
+                                }
+                            }
+                            
+                            String finalSocialPost = hook + "\n\n" + texto + "\n\n" + cta + "\n\n" + hashtagsBuilder.toString().trim();
+                            response.put("social_post", finalSocialPost);
+                        }
+                    } else {
+                        response.put("status", "error");
+                        response.put("message", "La IA devolvió JSON pero no se encontró la imagen base64.");
+                    }
+                } else if (n8nContentType != null && n8nContentType.toString().startsWith("image/")) {
+                    // Fallback in case n8n still returns a raw image
                     String mimeType = n8nContentType.toString();
                     String base64Image = java.util.Base64.getEncoder().encodeToString(responseBytes);
                     String dataUrl = "data:" + mimeType + ";base64," + base64Image;
@@ -97,14 +139,12 @@ public class ProductService implements IProductService {
                     response.put("message", "Información procesada y enviada a n8n exitosamente.");
                     response.put("n8n_response_image", dataUrl);
                 } else {
-                    // Recibimos respuesta pero no es una imagen (posible mensaje de error de la IA)
-                    String aiMessage = new String(responseBytes, java.nio.charset.StandardCharsets.UTF_8);
                     response.put("status", "error");
-                    response.put("message", "Mensaje de la IA: " + (aiMessage.isEmpty() ? "No se recibió una imagen válida." : aiMessage));
+                    response.put("message", "Mensaje de la IA: " + (responseStr.isEmpty() ? "Respuesta desconocida." : responseStr));
                 }
             } else {
                 response.put("status", "error");
-                response.put("message", "No se recibió ninguna imagen por parte de la IA.");
+                response.put("message", "No se recibió ninguna respuesta por parte de la IA.");
             }
             
         } catch (org.springframework.web.client.RestClientResponseException e) {
@@ -142,7 +182,7 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    public Product saveProductFromAI(String base64Image, String nombre, String precio, String cantidad, String detalles, String categoria) throws Exception {
+    public Product saveProductFromAI(String base64Image, String nombre, String precio, String cantidad, String detalles, String categoria, String socialPost) throws Exception {
         
         String designImagePath = null;
         
@@ -185,6 +225,7 @@ public class ProductService implements IProductService {
         product.setDetails(detalles);
         product.setCategory(categoria != null ? categoria : "General");
         product.setDesignImagePath(designImagePath);
+        product.setSocialPost(socialPost);
 
         return productRepository.save(product);
     }
