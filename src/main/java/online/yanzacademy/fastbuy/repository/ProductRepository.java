@@ -21,4 +21,8 @@ public class ProductRepository {
     public java.util.Optional<Product> findById(Long id) {
         return repository.findById(id);
     }
+
+    public void delete(Product product) {
+        repository.delete(product);
+    }
 }
