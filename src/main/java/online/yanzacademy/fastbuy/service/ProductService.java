@@ -41,7 +41,10 @@ public class ProductService implements IProductService {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            RestTemplate restTemplate = new RestTemplate();
+            org.springframework.http.client.SimpleClientHttpRequestFactory requestFactory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+            requestFactory.setConnectTimeout(180000); // 3 minutos
+            requestFactory.setReadTimeout(180000);    // 3 minutos
+            RestTemplate restTemplate = new RestTemplate(requestFactory);
             
             // 1. Configurar los headers para n8n
             HttpHeaders headers = new HttpHeaders();
