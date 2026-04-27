@@ -55,9 +55,10 @@ public class ProductService implements IProductService {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             
             // Construimos el JSON string manualmente para evitar dependencias externas como ObjectMapper
+            String detallesObj = (detalles != null && detalles.trim().startsWith("{")) ? detalles : "\"" + escapeJson(detalles) + "\"";
             String jsonString = String.format(
-                "{\"nombre\":\"%s\",\"precio\":\"%s\",\"cantidad\":\"%s\",\"detalles\":\"%s\"}",
-                escapeJson(nombre), escapeJson(precio), escapeJson(cantidad), escapeJson(detalles)
+                "{\"nombre\":\"%s\",\"precio\":\"%s\",\"cantidad\":\"%s\",\"detalles\":%s}",
+                escapeJson(nombre), escapeJson(precio), escapeJson(cantidad), detallesObj
             );
 
             // Configuramos los headers para esta parte específica ("data")
@@ -221,11 +222,24 @@ public class ProductService implements IProductService {
             designImagePath = fileName; // Solo guardamos el nombre del archivo para que la BD no maneje rutas absolutas
         }
 
+        String finalDetails = detalles;
+        try {
+            if (detalles != null && detalles.trim().startsWith("{")) {
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode node = mapper.readTree(detalles);
+                if (node.has("texto")) {
+                    finalDetails = node.get("texto").asText();
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error procesando detalles JSON al guardar en BD: " + e.getMessage());
+        }
+
         Product product = new Product();
         product.setName(nombre);
         product.setPrice(new BigDecimal(precio));
         product.setStock(Integer.parseInt(cantidad));
-        product.setDetails(detalles);
+        product.setDetails(finalDetails);
         product.setCategory(categoria != null ? categoria : "General");
         product.setDesignImagePath(designImagePath);
         product.setSocialPost(socialPost);
