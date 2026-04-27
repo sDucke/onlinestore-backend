@@ -133,9 +133,10 @@ public class ProductService implements IProductService {
                         String texto = socialPostNode.has("texto_publicacion") ? socialPostNode.get("texto_publicacion").asText() : "";
                         String cta = socialPostNode.has("cta") ? socialPostNode.get("cta").asText() : "";
 
+                        String formattedPrice = formatPriceForDisplay(precio);
                         // Asegurarse de que el texto incluya el precio
-                        if (!texto.contains(precio)) {
-                            texto += " | Precio: $" + precio;
+                        if (!texto.contains(formattedPrice)) {
+                            texto += " | Precio: $" + formattedPrice;
                         }
 
                         StringBuilder hashtagsBuilder = new StringBuilder();
@@ -403,6 +404,18 @@ public class ProductService implements IProductService {
             return true;
         } catch (IllegalArgumentException ignored) {
             return false;
+        }
+    }
+
+    private String formatPriceForDisplay(String rawPrice) {
+        if (rawPrice == null || rawPrice.trim().isEmpty()) {
+            return "0.00";
+        }
+
+        try {
+            return new BigDecimal(rawPrice.trim()).setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
+        } catch (NumberFormatException ex) {
+            return rawPrice.trim();
         }
     }
 

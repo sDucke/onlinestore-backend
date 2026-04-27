@@ -2,6 +2,7 @@ package online.yanzacademy.fastbuy.entity;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 
 @Entity
@@ -52,8 +53,12 @@ public class Product {
     public void setId(Long id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
-    public BigDecimal getPrice() { return price; }
-    public void setPrice(BigDecimal price) { this.price = price; }
+    public BigDecimal getPrice() {
+        return price == null ? null : price.setScale(2, RoundingMode.HALF_UP);
+    }
+    public void setPrice(BigDecimal price) {
+        this.price = price == null ? null : price.setScale(2, RoundingMode.HALF_UP);
+    }
     public Integer getStock() { return stock; }
     public void setStock(Integer stock) { this.stock = stock; }
     public String getCategory() { return category; }
