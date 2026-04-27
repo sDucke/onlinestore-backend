@@ -20,6 +20,8 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.Normalizer;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -181,8 +183,29 @@ public class ProductService implements IProductService {
     private String uploadDir;
 
     @Override
-    public java.util.List<Product> getAllProducts() {
-        return productRepository.findAll();
+    public List<Product> getAllProducts() {
+        List<Product> products = productRepository.findAll();
+
+        boolean hasPathFixes = false;
+        for (Product product : products) {
+            String currentPath = product.getDesignImagePath();
+            String normalizedPath = normalizeStoredImagePath(currentPath);
+            if (currentPath != null && normalizedPath == null) {
+                product.setDesignImagePath(null);
+                hasPathFixes = true;
+                continue;
+            }
+            if (normalizedPath != null && !normalizedPath.equals(currentPath)) {
+                product.setDesignImagePath(normalizedPath);
+                hasPathFixes = true;
+            }
+        }
+
+        if (hasPathFixes) {
+            productRepository.saveAll(products);
+        }
+
+        return products;
     }
 
     @Override
@@ -213,13 +236,14 @@ public class ProductService implements IProductService {
             byte[] decodedBytes = java.util.Base64.getDecoder().decode(imageString);
 
             // Generar un nombre único para evitar colisiones
-            String fileName = UUID.randomUUID().toString() + "_" + nombre.replaceAll(" ", "_").toLowerCase() + extension;
+            String safeName = sanitizeFileName(nombre);
+            String fileName = UUID.randomUUID() + "_" + safeName + extension;
             Path filePath = directoryPath.resolve(fileName);
             
             // Descargar el archivo procesado por la IA localmente usando java.nio.file.Files.write
             Files.write(filePath, decodedBytes);
             
-            designImagePath = fileName; // Solo guardamos el nombre del archivo para que la BD no maneje rutas absolutas
+            designImagePath = normalizeStoredImagePath(fileName);
         }
 
         String finalDetails = detalles;
@@ -267,8 +291,9 @@ public class ProductService implements IProductService {
                 .orElseThrow(() -> new Exception("Producto no encontrado con el id: " + id));
         
         // Opcional: Eliminar la imagen asociada si existe localmente
-        if (product.getDesignImagePath() != null) {
-            Path imagePath = Paths.get(uploadDir).resolve(product.getDesignImagePath());
+        String normalizedPath = normalizeStoredImagePath(product.getDesignImagePath());
+        if (normalizedPath != null) {
+            Path imagePath = Paths.get(uploadDir).resolve(normalizedPath);
             try {
                 Files.deleteIfExists(imagePath);
             } catch (IOException e) {
@@ -277,5 +302,59 @@ public class ProductService implements IProductService {
         }
 
         productRepository.delete(product);
+    }
+
+    private String sanitizeFileName(String input) {
+        String safeInput = input == null ? "" : input.trim();
+        if (safeInput.isEmpty()) {
+            return "producto";
+        }
+
+        String ascii = Normalizer.normalize(safeInput, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+        String sanitized = ascii.toLowerCase()
+                .replaceAll("[^a-z0-9._-]+", "_")
+                .replaceAll("_+", "_")
+                .replaceAll("^_+|_+$", "");
+
+        return sanitized.isEmpty() ? "producto" : sanitized;
+    }
+
+    private String normalizeStoredImagePath(String rawPath) {
+        if (rawPath == null) {
+            return null;
+        }
+
+        String normalized = rawPath.trim().replace("\\", "/");
+        if (normalized.isEmpty()) {
+            return null;
+        }
+
+        int querySeparator = normalized.indexOf('?');
+        if (querySeparator >= 0) {
+            normalized = normalized.substring(0, querySeparator);
+        }
+
+        String apiPrefix = "/api/images/";
+        int apiPrefixPos = normalized.indexOf(apiPrefix);
+        if (apiPrefixPos >= 0) {
+            normalized = normalized.substring(apiPrefixPos + apiPrefix.length());
+        }
+
+        if (normalized.startsWith("file:")) {
+            try {
+                Path uriPath = Paths.get(java.net.URI.create(normalized));
+                normalized = uriPath.getFileName() != null ? uriPath.getFileName().toString() : "";
+            } catch (Exception ignored) {
+                int lastSlash = normalized.lastIndexOf('/');
+                normalized = lastSlash >= 0 ? normalized.substring(lastSlash + 1) : normalized;
+            }
+        }
+
+        if (normalized.contains("/")) {
+            normalized = normalized.substring(normalized.lastIndexOf('/') + 1);
+        }
+
+        return normalized.isEmpty() ? null : normalized;
     }
 }
