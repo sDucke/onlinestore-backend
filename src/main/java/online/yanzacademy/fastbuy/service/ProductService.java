@@ -100,40 +100,53 @@ public class ProductService implements IProductService {
                 if (n8nContentType != null && n8nContentType.toString().startsWith("application/json")) {
                     ObjectMapper mapper = new ObjectMapper();
                     JsonNode rootNode = mapper.readTree(responseStr);
-                    
-                    if (rootNode.has("image_base64")) {
-                        String mimeType = rootNode.has("mimeType") ? rootNode.get("mimeType").asText() : "image/png";
-                        String base64Image = rootNode.get("image_base64").asText();
-                        String dataUrl = "data:" + mimeType + ";base64," + base64Image;
-                        
-                        response.put("status", "success");
-                        response.put("message", "Información procesada y enviada a n8n exitosamente.");
+                    JsonNode payloadNode = extractN8nPayload(rootNode);
+
+                    String mimeType = payloadNode.has("mimeType") ? payloadNode.get("mimeType").asText() : "image/png";
+                    String base64Image = payloadNode.has("image_base64") ? payloadNode.get("image_base64").asText(null) : null;
+                    boolean imageWasGenerated = payloadNode.has("image_was_generated") && payloadNode.get("image_was_generated").asBoolean();
+                    boolean hasUsableImage = isUsableBase64Payload(base64Image);
+
+                    response.put("status", "success");
+                    response.put("message", "Información procesada y enviada a n8n exitosamente.");
+                    response.put("image_was_generated", imageWasGenerated);
+                    if (payloadNode.has("diseno_enabled")) {
+                        response.put("diseno_enabled", payloadNode.get("diseno_enabled").asBoolean());
+                    }
+                    if (payloadNode.has("graphic_design_skipped")) {
+                        response.put("graphic_design_skipped", payloadNode.get("graphic_design_skipped").asBoolean());
+                    }
+                    if (payloadNode.has("image_source")) {
+                        response.put("image_source", payloadNode.get("image_source").asText(""));
+                    }
+
+                    if (hasUsableImage) {
+                        String dataUrl = base64Image != null && base64Image.trim().startsWith("data:")
+                                ? base64Image.trim()
+                                : "data:" + mimeType + ";base64," + base64Image;
                         response.put("n8n_response_image", dataUrl);
-                        
-                        if (rootNode.has("social_post")) {
-                            JsonNode socialPostNode = rootNode.get("social_post");
-                            String hook = socialPostNode.has("hook") ? socialPostNode.get("hook").asText() : "";
-                            String texto = socialPostNode.has("texto_publicacion") ? socialPostNode.get("texto_publicacion").asText() : "";
-                            String cta = socialPostNode.has("cta") ? socialPostNode.get("cta").asText() : "";
-                            
-                            // Asegurarse de que el texto incluya el precio
-                            if (!texto.contains(precio)) {
-                                texto += " | Precio: $" + precio;
-                            }
-                            
-                            StringBuilder hashtagsBuilder = new StringBuilder();
-                            if (socialPostNode.has("hashtags")) {
-                                for (JsonNode tag : socialPostNode.get("hashtags")) {
-                                    hashtagsBuilder.append(tag.asText()).append(" ");
-                                }
-                            }
-                            
-                            String finalSocialPost = hook + "\n\n" + texto + "\n\n" + cta + "\n\n" + hashtagsBuilder.toString().trim();
-                            response.put("social_post", finalSocialPost);
+                    }
+
+                    if (payloadNode.has("social_post")) {
+                        JsonNode socialPostNode = payloadNode.get("social_post");
+                        String hook = socialPostNode.has("hook") ? socialPostNode.get("hook").asText() : "";
+                        String texto = socialPostNode.has("texto_publicacion") ? socialPostNode.get("texto_publicacion").asText() : "";
+                        String cta = socialPostNode.has("cta") ? socialPostNode.get("cta").asText() : "";
+
+                        // Asegurarse de que el texto incluya el precio
+                        if (!texto.contains(precio)) {
+                            texto += " | Precio: $" + precio;
                         }
-                    } else {
-                        response.put("status", "error");
-                        response.put("message", "La IA devolvió JSON pero no se encontró la imagen base64.");
+
+                        StringBuilder hashtagsBuilder = new StringBuilder();
+                        if (socialPostNode.has("hashtags")) {
+                            for (JsonNode tag : socialPostNode.get("hashtags")) {
+                                hashtagsBuilder.append(tag.asText()).append(" ");
+                            }
+                        }
+
+                        String finalSocialPost = hook + "\n\n" + texto + "\n\n" + cta + "\n\n" + hashtagsBuilder.toString().trim();
+                        response.put("social_post", finalSocialPost);
                     }
                 } else if (n8nContentType != null && n8nContentType.toString().startsWith("image/")) {
                     // Fallback in case n8n still returns a raw image
@@ -235,7 +248,7 @@ public class ProductService implements IProductService {
                 imageString = base64Image;
             }
 
-            byte[] decodedBytes = java.util.Base64.getDecoder().decode(imageString);
+            byte[] decodedBytes = decodeBase64Image(imageString);
 
             // Generar un nombre único para evitar colisiones
             String safeName = sanitizeFileName(nombre);
@@ -320,6 +333,77 @@ public class ProductService implements IProductService {
                 .replaceAll("^_+|_+$", "");
 
         return sanitized.isEmpty() ? "producto" : sanitized;
+    }
+
+    private byte[] decodeBase64Image(String rawImageString) {
+        String imageString = rawImageString == null ? "" : rawImageString.trim();
+        if (imageString.isEmpty()) {
+            throw new IllegalArgumentException("La imagen en Base64 está vacía.");
+        }
+
+        // Normaliza posibles saltos de línea/espacios y padding faltante.
+        imageString = imageString.replaceAll("\\s+", "");
+        int remainder = imageString.length() % 4;
+        if (remainder != 0) {
+            imageString = imageString + "=".repeat(4 - remainder);
+        }
+
+        try {
+            return java.util.Base64.getDecoder().decode(imageString);
+        } catch (IllegalArgumentException standardBase64Error) {
+            try {
+                return java.util.Base64.getUrlDecoder().decode(imageString);
+            } catch (IllegalArgumentException urlSafeBase64Error) {
+                throw new IllegalArgumentException("La IA devolvió una imagen en un formato Base64 inválido.", urlSafeBase64Error);
+            }
+        }
+    }
+
+    private JsonNode extractN8nPayload(JsonNode rootNode) {
+        if (rootNode == null) {
+            return null;
+        }
+
+        if (rootNode.isArray() && rootNode.size() > 0) {
+            JsonNode first = rootNode.get(0);
+            if (first != null && first.has("response_payload") && first.get("response_payload").isObject()) {
+                return first.get("response_payload");
+            }
+            return first;
+        }
+
+        if (rootNode.has("response_payload") && rootNode.get("response_payload").isObject()) {
+            return rootNode.get("response_payload");
+        }
+
+        return rootNode;
+    }
+
+    private boolean isUsableBase64Payload(String base64Payload) {
+        if (base64Payload == null) {
+            return false;
+        }
+
+        String value = base64Payload.trim();
+        if (value.isEmpty()) {
+            return false;
+        }
+
+        if (value.startsWith("data:image/")) {
+            return true;
+        }
+
+        String lowerValue = value.toLowerCase();
+        if (lowerValue.startsWith("filesystem-")) {
+            return false;
+        }
+
+        try {
+            decodeBase64Image(value);
+            return true;
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
     }
 
     private String normalizeStoredImagePath(String rawPath) {
