@@ -14,6 +14,10 @@ public class ProductRepository {
         return repository.save(product);
     }
 
+    public java.util.List<Product> saveAll(java.util.List<Product> products) {
+        return repository.saveAll(products);
+    }
+
     public java.util.List<Product> findAll() {
         return repository.findAll();
     }
