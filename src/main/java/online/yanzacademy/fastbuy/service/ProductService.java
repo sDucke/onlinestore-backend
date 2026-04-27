@@ -202,7 +202,9 @@ public class ProductService implements IProductService {
         }
 
         if (hasPathFixes) {
-            productRepository.saveAll(products);
+            for (Product product : products) {
+                productRepository.save(product);
+            }
         }
 
         return products;
