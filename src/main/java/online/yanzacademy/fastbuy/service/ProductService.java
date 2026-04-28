@@ -320,6 +320,46 @@ public class ProductService implements IProductService {
     }
 
     @Override
+    public Product saveProductDirect(Long id, MultipartFile file, String nombre, String precio, String cantidad, String detalles, String categoria) throws Exception {
+        Product product;
+        
+        if (id != null) {
+            product = productRepository.findById(id)
+                    .orElseThrow(() -> new Exception("Producto no encontrado con el id: " + id));
+        } else {
+            product = new Product();
+        }
+        
+        String designImagePath = product.getDesignImagePath();
+        
+        if (file != null && !file.isEmpty()) {
+            Path directoryPath = Paths.get(uploadDir);
+            if (!Files.exists(directoryPath)) {
+                Files.createDirectories(directoryPath);
+            }
+            
+            String safeName = sanitizeFileName(nombre);
+            String extension = getFileExtension(file.getOriginalFilename());
+            String fileName = UUID.randomUUID() + "_" + safeName + extension;
+            Path filePath = directoryPath.resolve(fileName);
+            
+            Files.write(filePath, file.getBytes());
+            designImagePath = normalizeStoredImagePath(fileName);
+            product.setDesignImagePath(designImagePath);
+        }
+        
+        String finalDetails = parseDetalles(detalles);
+        
+        product.setName(nombre);
+        product.setPrice(new BigDecimal(precio));
+        product.setStock(Integer.parseInt(cantidad));
+        product.setDetails(finalDetails);
+        product.setCategory(categoria != null ? categoria : "General");
+        
+        return productRepository.save(product);
+    }
+
+    @Override
     public Product updateProduct(Long id, String nombre, String precio, String cantidad, String detalles, String categoria) throws Exception {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new Exception("Producto no encontrado con el id: " + id));

@@ -72,6 +72,25 @@ public class ProductController {
         }
     }
 
+    @PostMapping("/upsert")
+    public ResponseEntity<Map<String, Object>> upsertProduct(
+            @RequestParam(value = "id", required = false) Long id,
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam("nombre") String nombre,
+            @RequestParam("precio") String precio,
+            @RequestParam("cantidad") String cantidad,
+            @RequestParam("detalles") String detalles,
+            @RequestParam(value = "categoria", required = false) String categoria) {
+
+        try {
+            Product saved = productService.saveProductDirect(id, file, nombre, precio, cantidad, detalles, categoria);
+            return ResponseEntity.ok(Map.of("status", "success", "product", saved));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
     @GetMapping("/all")
     public ResponseEntity<java.util.List<online.yanzacademy.fastbuy.entity.Product>> getAllProducts() {
         return ResponseEntity.ok(productService.getAllProducts());

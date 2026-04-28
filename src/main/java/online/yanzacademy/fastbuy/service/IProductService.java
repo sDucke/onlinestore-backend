@@ -21,6 +21,9 @@ public interface IProductService {
     // Nuevo método para guardar producto directamente (sin n8n)
     Product saveProductDirect(MultipartFile file, String nombre, String precio, String cantidad, String detalles, String categoria) throws Exception;
 
+    // Nuevo método para guardar/actualizar directamente sin n8n (upsert)
+    Product saveProductDirect(Long id, MultipartFile file, String nombre, String precio, String cantidad, String detalles, String categoria) throws Exception;
+
     // Eliminar producto
     void deleteProduct(Long id) throws Exception;
 }
