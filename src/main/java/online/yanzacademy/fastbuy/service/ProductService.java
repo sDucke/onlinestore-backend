@@ -288,6 +288,38 @@ public class ProductService implements IProductService {
     }
 
     @Override
+    public Product saveProductDirect(MultipartFile file, String nombre, String precio, String cantidad, String detalles, String categoria) throws Exception {
+        String designImagePath = null;
+        
+        if (file != null && !file.isEmpty()) {
+            Path directoryPath = Paths.get(uploadDir);
+            if (!Files.exists(directoryPath)) {
+                Files.createDirectories(directoryPath);
+            }
+            
+            String safeName = sanitizeFileName(nombre);
+            String extension = getFileExtension(file.getOriginalFilename());
+            String fileName = UUID.randomUUID() + "_" + safeName + extension;
+            Path filePath = directoryPath.resolve(fileName);
+            
+            Files.write(filePath, file.getBytes());
+            designImagePath = normalizeStoredImagePath(fileName);
+        }
+        
+        String finalDetails = parseDetalles(detalles);
+        
+        Product product = new Product();
+        product.setName(nombre);
+        product.setPrice(new BigDecimal(precio));
+        product.setStock(Integer.parseInt(cantidad));
+        product.setDetails(finalDetails);
+        product.setCategory(categoria != null ? categoria : "General");
+        product.setDesignImagePath(designImagePath);
+        
+        return productRepository.save(product);
+    }
+
+    @Override
     public Product updateProduct(Long id, String nombre, String precio, String cantidad, String detalles, String categoria) throws Exception {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new Exception("Producto no encontrado con el id: " + id));
@@ -318,6 +350,37 @@ public class ProductService implements IProductService {
         }
 
         productRepository.delete(product);
+    }
+
+    private String getFileExtension(String fileName) {
+        if (fileName == null || fileName.isEmpty()) {
+            return ".jpg";
+        }
+        int lastDot = fileName.lastIndexOf('.');
+        if (lastDot < 0) {
+            return ".jpg";
+        }
+        String ext = fileName.substring(lastDot).toLowerCase();
+        if (ext.equals(".png") || ext.equals(".jpg") || ext.equals(".jpeg") || ext.equals(".webp") || ext.equals(".gif")) {
+            return ext;
+        }
+        return ".jpg";
+    }
+    
+    private String parseDetalles(String detalles) {
+        String finalDetails = detalles;
+        if (detalles != null && detalles.trim().startsWith("{")) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode node = mapper.readTree(detalles);
+                if (node.has("texto")) {
+                    finalDetails = node.get("texto").asText();
+                }
+            } catch (Exception e) {
+                System.err.println("Error parseando detalles JSON: " + e.getMessage());
+            }
+        }
+        return finalDetails;
     }
 
     private String sanitizeFileName(String input) {

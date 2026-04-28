@@ -1,5 +1,6 @@
 package online.yanzacademy.fastbuy.controller;
 
+import online.yanzacademy.fastbuy.entity.Product;
 import online.yanzacademy.fastbuy.service.IProductService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -47,6 +48,28 @@ public class ProductController {
         }
 
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/create")
+    public ResponseEntity<Map<String, Object>> createProduct(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("nombre") String nombre,
+            @RequestParam("precio") String precio,
+            @RequestParam("cantidad") String cantidad,
+            @RequestParam("detalles") String detalles,
+            @RequestParam("categoria") String categoria) {
+
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "La imagen es obligatoria."));
+        }
+
+        try {
+            Product saved = productService.saveProductDirect(file, nombre, precio, cantidad, detalles, categoria);
+            return ResponseEntity.ok(Map.of("status", "success", "product", saved));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("status", "error", "message", e.getMessage()));
+        }
     }
 
     @GetMapping("/all")
